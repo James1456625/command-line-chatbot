@@ -33,3 +33,8 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# SQLite
+*.db
+*.sqlite3
+chat.db

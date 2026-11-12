@@ -1,37 +1,92 @@
-# 命令行对话机器人
+# 聊天机器人 + SQLite 持久化 + 前端页面
 
-基于 Python + OpenAI SDK 的命令行多轮对话机器人，支持流式输出。
+这是一个基于 Python + FastAPI 的聊天机器人，支持会话持久化到 SQLite，并提供一个纯 HTML 前端页面。
+
+## 功能概览
+
+- 会话信息和消息记录存放在 SQLite 数据库中
+- 服务重启后历史会话仍然存在
+- 提供 `/sessions`、`/chat`、`/chat/stream` 等接口
+- 后端托管一个简单的聊天页面，可通过浏览器访问 `http://127.0.0.1:8000`
+- 代码中保留自动建表逻辑，并通过 `.gitignore` 忽略数据库文件
+
+## 数据库结构
+
+```mermaid
+erDiagram
+    sessions {
+        TEXT id PK
+        TEXT title
+        TEXT created_at
+        TEXT updated_at
+    }
+
+    messages {
+        INTEGER id PK
+        TEXT session_id FK
+        TEXT role
+        TEXT content
+        TEXT created_at
+    }
+
+    sessions ||--o{ messages : contains
+```
 
 ## 快速开始
 
 ```bash
-# 安装依赖
+# 1) 安装依赖
 pip install -r requirements.txt
 
-# 复制环境变量模板并填写 API Key
+# 2) 复制环境变量模板
 cp .env.example .env
 # 编辑 .env，填入你的 CHATBOT_API_KEY
 
-# 启动对话
-python chatbot.py
+# 3) 启动网页服务
+python main.py
+# 或者
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-## 项目结构
+访问：
 
-```
-├── config.py          # pydantic-settings 配置模块
-├── llm.py             # 大模型调用封装
-├── chatbot.py         # 主程序入口
-├── requirements.txt
-├── .env.example       # 环境变量模板
-├── .gitignore
-└── tests/
-    ├── test_config.py # 配置模块测试
-    └── test_llm.py    # LLM 调用测试
-```
+- 聊天页面：`http://127.0.0.1:8000`
+- 健康检查：`http://127.0.0.1:8000/health`
+
+## 接口说明
+
+- `GET /sessions`：获取所有会话
+- `POST /sessions`：创建会话
+- `GET /sessions/{session_id}/messages`：获取某会话消息记录
+- `POST /chat`：发送消息并返回回复
+- `GET /chat/stream`：流式聊天接口
+- `DELETE /sessions/{session_id}`：删除会话
+- `POST /sessions/{session_id}/clear`：清空某会话
 
 ## 运行测试
 
 ```bash
-python -m pytest tests/ -v
+pytest -q
+```
+
+## 项目结构
+
+```text
+├── app.py            # FastAPI 应用入口
+├── main.py           # 直接启动脚本
+├── chatbot.py        # 命令行聊天程序
+├── llm.py            # OpenAI SDK 调用封装
+├── store.py          # SQLite 会话存储层
+├── index.html        # 纯 HTML 前端页面
+├── config.py         # 配置加载
+├── requirements.txt
+├── README.md
+├── .env.example
+├── .gitignore
+├── tests/
+│   ├── test_config.py
+│   ├── test_llm.py
+│   ├── test_db.py
+│   └── test_api.py
+└── chat.db           # 本地数据库文件，已在 .gitignore 中忽略
 ```
