@@ -53,8 +53,8 @@ def create_session(payload: SessionCreateRequest) -> dict[str, Any]:
 
 
 @app.get("/sessions/{session_id}/messages")
-def get_messages(session_id: str) -> list[dict[str, Any]]:
-    return store.get_messages(session_id)
+def get_messages(session_id: str, keyword: str | None = Query(default=None, description="按消息内容关键词筛选")) -> list[dict[str, Any]]:
+    return store.get_messages(session_id, keyword=keyword)
 
 
 @app.delete("/sessions/{session_id}")
@@ -80,12 +80,13 @@ def chat(payload: ChatRequest) -> dict[str, Any]:
         session = store.create_session(title="新会话")
         session_id = session["id"]
 
-    store.add_message(session_id, "user", message)
+    # 先取得历史作为模型上下文，不先写入用户消息
     history = store.get_messages(session_id)
     context = [{"role": item["role"], "content": item["content"]} for item in history]
+    context.append({"role": "user", "content": message})
 
     reply = generate_reply(context, stream=False)
-    store.add_message(session_id, "assistant", reply)
+    store.add_turn(session_id, message, reply)
 
     return {
         "session_id": session_id,
@@ -104,9 +105,9 @@ async def chat_stream(session_id: str | None = Query(default=None), message: str
         session_id = session["id"]
 
     text = message.strip()
-    store.add_message(session_id, "user", text)
     history = store.get_messages(session_id)
     context = [{"role": item["role"], "content": item["content"]} for item in history]
+    context.append({"role": "user", "content": text})
 
     async def _generate() -> Iterable[str]:
         chunks: list[str] = []
@@ -115,7 +116,7 @@ async def chat_stream(session_id: str | None = Query(default=None), message: str
             payload = json.dumps({"type": "token", "text": str(token)}, ensure_ascii=False)
             yield f"data: {payload}\n\n"
         reply = "".join(chunks)
-        store.add_message(session_id, "assistant", reply)
+        store.add_turn(session_id, text, reply)
         yield f"data: {json.dumps({'type': 'done', 'reply': reply}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

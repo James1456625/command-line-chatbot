@@ -10,6 +10,39 @@
 - 后端托管一个简单的聊天页面，可通过浏览器访问 `http://127.0.0.1:8000`
 - 代码中保留自动建表逻辑，并通过 `.gitignore` 忽略数据库文件
 
+## ORM 与数据库结构
+
+本项目使用 SQLAlchemy 2.x 声明式模型：`store.SessionModel` 对应 `sessions` 表，`store.MessageModel` 对应 `messages` 表。`SessionModel.messages` 与 `MessageModel.session` 是双向 `relationship`；`messages.session_id` 为指向 `sessions.id` 的外键并配置级联删除。启动时执行 `Base.metadata.create_all()`，只建缺失表，不删除旧表或清空旧数据。
+
+如果后续调整表结构，应先备份再升级：
+
+```bash
+cp chat.db chat.db.backup
+```
+
+升级时采用新增可空列、保留旧列、回填数据，再更新模型的方式；不要直接删除数据库。项目启动不会清空或覆盖已有会话和消息。
+
+关键词查询使用 ORM 表达式：
+
+```python
+select(MessageModel).where(
+    MessageModel.session_id == session_id,
+    MessageModel.content.contains(keyword),
+).order_by(MessageModel.id.asc())
+```
+
+对应 SQL 可概括为：
+
+```sql
+SELECT messages.id, messages.session_id, messages.role, messages.content, messages.created_at
+FROM messages
+WHERE messages.session_id = ?
+  AND messages.content LIKE '%关键词%'
+ORDER BY messages.id ASC;
+```
+
+两者表达相同查询语义：ORM 根据模型字段生成表名、列名和参数绑定，结果再映射为 `MessageModel` 对象。
+
 ## 数据库结构
 
 ```mermaid
